@@ -14,6 +14,7 @@ mod morph_text;
 mod paint;
 mod placed;
 mod table;
+mod warp;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -770,7 +771,10 @@ impl Renderer {
             let tr = geo.text_rect;
             if !body.is_empty() {
                 let l = deckcraft_text::layout(rctx, s, body, &Opts { rect: tr, fields: &f.fields, prompt_color: None, no_shrink: false });
-                draw_layout_with(ctx, &l, tr, m, &st.paras);
+                match text_warp(rctx, s, tr).filter(|_| l.rotation == 0.0) {
+                    Some(w) => warp::draw(ctx, &l, tr, m, &st.paras, &w),
+                    None => draw_layout_with(ctx, &l, tr, m, &st.paras),
+                }
             } else if f.opts.edit && s.ph.is_some() {
                 let kind = s.ph_type().unwrap_or(PhType::Body);
                 let prompt_body = prompt_body(rctx, s, kind);
@@ -1082,6 +1086,13 @@ pub fn text_transform(m: Affine, tr: Rect, rotation: f64) -> Affine {
         t = t * Affine::translate(c) * Affine::rotate(rotation.to_radians()) * Affine::translate(-c);
     }
     t
+}
+
+/// The WordArt warp of `s`'s text over its text rectangle `tr`, if it has one DeckCraft draws.
+pub fn text_warp(rctx: &Ctx, s: &Shape, tr: Rect) -> Option<deckcraft_geom::warp::Warp> {
+    let bp = resolve::body(rctx, s);
+    let name = bp.warp.as_deref()?;
+    deckcraft_geom::warp::warp(name, &bp.warp_adj, tr)
 }
 
 /// Draw an already laid-out text block.
